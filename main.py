@@ -1,30 +1,40 @@
 import requests
-import json
 from bs4 import BeautifulSoup
 from colorama import Fore, Style
 import re
 import math
 from typing import Union
 from fastapi import FastAPI
-import sqlite3
+import mysql.connector
+import datetime
 
 
 app = FastAPI()
 
 # to run : "uvicorn main:app --reload"
 
-@app.get("/{mobile}")
 
-def item_details(mobile: str):
-    conn = sqlite3.connect("flipkart.db")
-    db = conn.cursor()
-    
-    db.execute("SELECT mobile FROM table3 WHERE mobile=(?)", (mobile,))
-    db_mobile = db.fetchall()
-    
-    if len(db_mobile) == 0:
+@app.get("/{product}")
+def item_details(product: str):
+
+    mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="server",
+        database="flipkart"
+    )
+    db = mydb.cursor()
+
+    db.execute("SELECT product FROM table2 WHERE product=(%s)", (product,))
+    match = db.fetchall()
+
+    if len(match) == 0:
         
-        url = f"https://www.flipkart.com/search?q={mobile.lower()}&otracker=AS_Query_HistoryAutoSuggest_2_0&otracker1=AS_Query_HistoryAutoSuggest_2_0&marketplace=FLIPKART"
+        
+
+        # url = f"https://www.flipkart.com/search?q={product.lower()}&otracker=AS_Query_HistoryAutoSuggest_2_0&otracker1=AS_Query_HistoryAutoSuggest_2_0&marketplace=FLIPKART"
+        
+        url =  f"https://www.flipkart.com/search?q={product.lower()}&sid=tyy%2C4io&as=on&as-show=on&otracker=AS_QueryStore_OrganicAutoSuggest_1_23_na_na_ps&otracker1=AS_QueryStore_OrganicAutoSuggest_1_23_na_na_ps&as-pos=1&as-type=RECENT&suggestionId={product.lower()}%7CMobiles&requestId=2e76c803-be64-4347-a77f-988832a11a80&as-searchtext={product.lower()}"
 
         r = requests.get(url)
 
@@ -35,55 +45,55 @@ def item_details(mobile: str):
         all_links = soup.find_all("a", attrs={"class": "_1fQZEK"})
         all_ratings = soup.find_all("div", attrs={"class": "_3LWZlK"})
 
-
         lowest_price = math.inf
         low_link = ""
         rating = 0
 
         for i in range(len(all_name)):
 
-            if match := re.search(r"(.+) \((.+), (.+)\)", all_name[i].text, re.IGNORECASE):
+            if match := re.search(r"(.+) \(.+", all_name[i].text, re.IGNORECASE):
 
                 name = match.group(1).lower()
-                color = match.group(2).lower()
-                rom = match.group(3)
                 rating = all_ratings[i].text
-                
-                if name == mobile.lower():
-                    
+
+                if name == product.lower():
+
                     price = all_price[i].text
                     # remove Rs, commas from price
                     price = int(price[1:].replace(",", ""))
                     link = all_links[i]["href"]
                     link = f"https://www.flipkart.com{link}"
-                    
+
                     link_full = re.search(r"(.+)\?.+", link, re.IGNORECASE)
                     link = link_full.group(1)
 
                     if price < lowest_price:
                         lowest_price = price
                         low_link = link
-                        
-                    db.execute("INSERT into table1 (mobile, link) VALUES (?, ?)", (name, link))
-                    db.execute("INSERT into table2 (price, rom, color) VALUES (?, ?, ?)", (price, rom, color))
-                
-        if rating != 0:            
-            db.execute("INSERT into table3 (mobile, lowest_price, rating, search_link, link) VALUES (?, ?, ?, ?, ?)", (mobile, lowest_price, rating, url, low_link))
-            print (f"{mobile} added to database")
-        
-            db.execute("SELECT * FROM table3 WHERE mobile = (?)", (mobile,))
+
+                    db.execute(
+                        "INSERT into table1 (product, link, price) VALUES (%s,%s,%s)", (name, link, price))
+
+        if rating != 0:
+            db.execute("INSERT into table2 (product, lowest_price, rating, link) VALUES (%s, %s, %s, %s)",
+                       (product, lowest_price, rating, low_link))
+            db.execute("INSERT into table3 (product, search_link) VALUES (%s, %s)",
+                       (product, url))
+
+            db.execute("SELECT * FROM table2 WHERE product = (%s)", (product,))
             details = db.fetchall()
-            conn.commit()
-            conn.close()
+            mydb.commit()
+            mydb.close()
             return details
-        
-        return "item not found"
-    
+
+        return "product not found"
+
     else:
-        db.execute("SELECT * FROM table3 where mobile = (?)", (mobile,))
+        db.execute("SELECT * FROM table2 where product = (%s)", (product,))
         details = db.fetchall()
-        conn.close()
-        return details 
+        mydb.close()
+        return details
+
 
 if __name__ == "__main__":
     app()
