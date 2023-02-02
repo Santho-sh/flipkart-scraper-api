@@ -19,3 +19,6 @@ CREATE TABLE table3 (
 );
 -- @block
 DROP TABLE table2;
+
+-- @block
+SELECT * FROM table1
