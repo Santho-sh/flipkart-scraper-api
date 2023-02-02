@@ -6,6 +6,8 @@ import math
 from typing import Union
 from fastapi import FastAPI
 import mysql.connector
+# import schedule
+# import time
 
 
 app = FastAPI()
@@ -105,6 +107,9 @@ def add_product(product):
 
     return "not found"
 
+# def update_details():
+#     db.execute("SELECT product FROM table3")
+#     ...
 
 if __name__ == "__main__":
     app()
